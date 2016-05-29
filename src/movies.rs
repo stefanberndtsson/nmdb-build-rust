@@ -214,64 +214,99 @@ impl Movies {
 }
 
 #[test]
-fn test_parse_episode() {
+fn test_movie_full_title() {
     let mut id_handler = IdHandler::new();
-    let m = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
-    assert_eq!("\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}", m.full_title);
-    assert_eq!("2005", m.full_year);
-    assert_eq!(1, m.years.len());
-    assert_eq!(2005, m.years[0]);
-    assert_eq!("E. Griff/Ralphie May", m.episode_name);
-    assert_eq!("1", m.episode_season);
-    assert_eq!("3", m.episode_episode);
-    assert_eq!(true, m.is_episode);
-    assert_eq!("\"1st Amendment Stand Up\" (2005)", m.episode_parent_title);
-    assert_eq!("2005", m.title_year);
-    assert_eq!("\"1st Amendment Stand Up\"", m.title);
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!("\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}", m1.full_title);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!("\"!Next?\" (1994)", m2.full_title);
+
+    let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
+    assert_eq!("\"#1 Single\" (2006)", m3.full_title);
 }
 
 #[test]
-fn test_parse_tvseries() {
+fn test_movie_full_year() {
     let mut id_handler = IdHandler::new();
-    let m = Movie::new(&mut id_handler, "\"!Next?\" (1994)							1994-1995");
-    assert_eq!("\"!Next?\" (1994)", m.full_title);
-    assert_eq!("1994-1995", m.full_year);
-    assert_eq!(false, m.year_open_end);
-    assert_eq!(2, m.years.len());
-    assert_eq!(1994, m.years[0]);
-    assert_eq!(1995, m.years[1]);
-    assert_eq!("", m.episode_name);
-    assert_eq!("", m.episode_season);
-    assert_eq!("", m.episode_episode);
-    assert_eq!(false, m.is_episode);
-    assert_eq!("", m.episode_parent_title);
-    assert_eq!("1994", m.title_year);
-    assert_eq!("\"!Next?\"", m.title);
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!("2005", m1.full_year);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!("1994-1995", m2.full_year);
+
+    let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
+    assert_eq!("2006-????", m3.full_year);
 }
 
 #[test]
-fn test_parse_year_open_end() {
+fn test_movie_years() {
     let mut id_handler = IdHandler::new();
-    let m = Movie::new(&mut id_handler, "\"#1 Single\" (2006)							2006-????");
-    assert_eq!("\"#1 Single\" (2006)", m.full_title);
-    assert_eq!("2006-????", m.full_year);
-    assert_eq!(true, m.years.len() > 9);
-    assert_eq!(2006, m.years[0]);
-    assert_eq!(2007, m.years[1]);
-    assert_eq!(2008, m.years[2]);
-    assert_eq!(2009, m.years[3]);
-    assert_eq!(2010, m.years[4]);
-    assert_eq!(2011, m.years[5]);
-    assert_eq!(2012, m.years[6]);
-    assert_eq!(2013, m.years[7]);
-    assert_eq!(2014, m.years[8]);
-    assert_eq!(2015, m.years[9]);
-    assert_eq!("", m.episode_name);
-    assert_eq!("", m.episode_season);
-    assert_eq!("", m.episode_episode);
-    assert_eq!(false, m.is_episode);
-    assert_eq!("", m.episode_parent_title);
-    assert_eq!(true, m.year_open_end);
-    assert_eq!("2006", m.title_year);
-    assert_eq!("\"#1 Single\"", m.title);
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!(1, m1.years.len());
+    assert_eq!(2005, m1.years[0]);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!(2, m2.years.len());
+    assert_eq!(1994, m2.years[0]);
+    assert_eq!(1995, m2.years[1]);
+
+    let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
+    assert_eq!(true, m3.years.len() > 9);
+    assert_eq!(2006, m3.years[0]);
+    assert_eq!(2007, m3.years[1]);
+    assert_eq!(2008, m3.years[2]);
+    assert_eq!(2009, m3.years[3]);
+    assert_eq!(2010, m3.years[4]);
+    assert_eq!(2011, m3.years[5]);
+    assert_eq!(2012, m3.years[6]);
+    assert_eq!(2013, m3.years[7]);
+    assert_eq!(2014, m3.years[8]);
+    assert_eq!(2015, m3.years[9]);
 }
+
+#[test]
+fn test_movie_episode() {
+    let mut id_handler = IdHandler::new();
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!(true, m1.is_episode);
+    assert_eq!("E. Griff/Ralphie May", m1.episode_name);
+    assert_eq!("1", m1.episode_season);
+    assert_eq!("3", m1.episode_episode);
+    assert_eq!("\"1st Amendment Stand Up\" (2005)", m1.episode_parent_title);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!(false, m2.is_episode);
+    assert_eq!("", m2.episode_parent_title);
+
+    let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
+    assert_eq!(false, m3.is_episode);
+    assert_eq!("", m3.episode_parent_title);
+}
+
+#[test]
+fn test_movie_title_year() {
+    let mut id_handler = IdHandler::new();
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!("2005", m1.title_year);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!("1994", m2.title_year);
+
+    let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
+    assert_eq!("2006", m3.title_year);
+}
+
+#[test]
+fn test_movie_title() {
+    let mut id_handler = IdHandler::new();
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!("\"1st Amendment Stand Up\"", m1.title);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!("\"!Next?\"", m2.title);
+
+    let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
+    assert_eq!("\"#1 Single\"", m3.title);
+}
+
