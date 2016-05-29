@@ -1,0 +1,9 @@
+[package]
+name = "nmdb_build"
+version = "0.1.0"
+authors = ["Stefan Berndtsson <stefan.berndtsson@gmail.com>"]
+
+[dependencies]
+regex = "0.1"
+lazy_static = "*"
+chrono = "*"
