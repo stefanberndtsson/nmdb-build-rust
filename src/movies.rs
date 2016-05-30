@@ -4,6 +4,16 @@ use std::io::BufRead;
 use regex::Regex;
 use chrono::*;
 use id_handler::IdHandler;
+use std::io::Write;
+
+macro_rules! println_stderr(
+    ($($arg:tt)*) => { {
+        let r = writeln!(&mut ::std::io::stderr(), $($arg)*);
+        r.expect("failed printing to stderr");
+    } }
+);
+
+
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -42,11 +52,16 @@ impl Movie {
     }
     
     fn parse_line(&mut self, id_handler: &mut IdHandler, line: &str) -> Movie {
-        println!("Line: {}", line);
+//        println!("DEBUG: line: {:?}", line);
         self.extract_full_title(line);
+        self.extract_suspended();
+        if self.suspended {
+            return self.clone();
+        }
         self.extract_full_year(line);
         self.extract_year();
         let mut remaining_title = self.extract_episode().to_owned();
+        remaining_title = self.extract_title_category(&remaining_title);
         remaining_title = self.extract_title_year(&remaining_title);
         self.extract_title(&remaining_title);
         self.set_id(id_handler);
@@ -55,6 +70,17 @@ impl Movie {
 
     fn set_id(&mut self, id_handler: &mut IdHandler) {
         self.id = id_handler.find_or_generate_movie_id(&self.full_title);
+    }
+
+    fn extract_suspended(&mut self) {
+        lazy_static! {
+            static ref SUSPEND1: Regex = Regex::new(r" \{\{SUSP(EN|NE)D\}\}$").unwrap();
+            static ref SUSPEND2: Regex = Regex::new(r" \{\{SUSP(EN|NE)DED\}\}$").unwrap();
+        }        
+        if SUSPEND1.is_match(&self.full_title) || SUSPEND2.is_match(&self.full_title) {
+            self.suspended = true;
+            self.full_title = "".to_owned();
+        }
     }
     
     fn extract_full_title(&mut self, line: &str) {
@@ -73,6 +99,27 @@ impl Movie {
         self.full_year = parts[1].to_owned();
     }
 
+    fn extract_title_category(&mut self, line: &str) -> String {
+        lazy_static! {
+            static ref TITLECAT: Regex = Regex::new(r"\((TV|V|VG)\)$").unwrap();
+        }
+
+        let mut cutoff_amount = 0;
+        
+        if line.starts_with("\"") {
+            self.title_category = "TVS".to_owned();
+        } else if TITLECAT.is_match(line) {
+            let cap = TITLECAT.captures(line).unwrap();
+            self.title_category = cap.at(1).unwrap_or("").to_owned();
+            cutoff_amount = self.title_category.len() + 3;
+        } else {
+            self.title_category = "".to_owned();
+        }
+
+        let remaining_length = line.len() - cutoff_amount;
+        return line[0..remaining_length].to_owned();
+    }
+    
     fn extract_title(&mut self, line: &str) {
         self.title = line.to_owned();
     }
@@ -82,15 +129,13 @@ impl Movie {
             static ref TITLEYEAR_WITH_CODE: Regex = Regex::new(r"\((..../[IVX]+)\)$").unwrap();
             static ref TITLEYEAR_WITHOUT_CODE: Regex = Regex::new(r"\((....)\)$").unwrap();
         }
-        let mut title_year = "";
+        let title_year;
         if TITLEYEAR_WITH_CODE.is_match(line) {
-            for cap in TITLEYEAR_WITH_CODE.captures_iter(line) {
-                title_year = cap.at(1).unwrap_or("");
-            }
+            let cap = TITLEYEAR_WITH_CODE.captures(line).unwrap();
+            title_year = cap.at(1).unwrap_or("");
         } else if TITLEYEAR_WITHOUT_CODE.is_match(line) {
-            for cap in TITLEYEAR_WITHOUT_CODE.captures_iter(line) {
-                title_year = cap.at(1).unwrap_or("");
-            }
+            let cap = TITLEYEAR_WITHOUT_CODE.captures(line).unwrap();
+            title_year = cap.at(1).unwrap_or("");
         } else {
             title_year = "";
         }
@@ -114,17 +159,15 @@ impl Movie {
             start_year = self.full_year.parse::<i32>().unwrap();
             end_year = start_year;
         } else if YEAR_RE_OPEN.is_match(&self.full_year) {
-            for cap in YEAR_RE_OPEN.captures_iter(&self.full_year) {
-                start_year = cap.at(1).unwrap_or("0").parse::<i32>().unwrap();
-            }
+            let cap = YEAR_RE_OPEN.captures(&self.full_year).unwrap();
+            start_year = cap.at(1).unwrap_or("0").parse::<i32>().unwrap();
             let date = Local::now();
             end_year = date.year();
             self.year_open_end = true;
         } else if YEAR_RE_CLOSED.is_match(&self.full_year) {
-            for cap in YEAR_RE_CLOSED.captures_iter(&self.full_year) {
-                start_year = cap.at(1).unwrap_or("0").parse::<i32>().unwrap();
-                end_year = cap.at(2).unwrap_or("0").parse::<i32>().unwrap();
-            }
+            let cap = YEAR_RE_CLOSED.captures(&self.full_year).unwrap();
+            start_year = cap.at(1).unwrap_or("0").parse::<i32>().unwrap();
+            end_year = cap.at(2).unwrap_or("0").parse::<i32>().unwrap();
         }
         
         self.years.clear();
@@ -160,13 +203,35 @@ impl Movie {
         if epval_parts.len() == 2 {
             self.episode_season = epval_parts[0].to_owned();
             self.episode_episode = epval_parts[1].to_owned();
-            self.episode_name = episode_data[0..epval_position-1].to_owned();
+            if epval_position > 0 {
+                self.episode_name = episode_data[0..epval_position-1].to_owned();
+            } else {
+                self.episode_name = "".to_owned();
+            }
         } else {
             self.episode_name = episode_data;
         }
         self.episode_parent_title = self.full_title[0..ep_position+1].to_owned();
         
         return self.episode_parent_title.to_owned();
+    }
+
+    pub fn output(&mut self) {
+        println!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                 self.id,
+                 self.full_title,
+                 self.full_year,
+                 self.title,
+                 self.title_year,
+                 self.title_category,
+                 self.year_open_end,
+                 self.is_episode,
+                 self.episode_name,
+                 self.episode_season,
+                 self.episode_episode,
+                 self.episode_parent_title,
+                 self.suspended
+        );
     }
 }
 
@@ -183,6 +248,8 @@ impl Movies {
 
     pub fn parse_file(&mut self, mut id_handler: &mut IdHandler) {
         let trigger_line = "MOVIES LIST";
+        let end_line = "--------------------------------------------------------------------------------";
+        let mut counter = 0;
         let mut triggered = false;
         let mut trigger_skip = 3;
         let f = File::open("data/movies.list").unwrap();
@@ -200,17 +267,23 @@ impl Movies {
             if trigger_skip > 0 {
                 continue;
             }
-            let m = Movie::new(&mut id_handler, &line.unwrap());
-            println!("Movie: {:?}", m);
-            self.movies.push(m);
-            break;
+            let file_line = line.unwrap();
+            if file_line == end_line {
+                break;
+            }
+            let m = Movie::new(&mut id_handler, &file_line);
+            if counter % 10000 == 0 {
+                println_stderr!("{}       Movie: {:?}\n", counter, m);
+            }
+            //            self.movies.push(m);
+            self.output_movie(m);
+            counter += 1;
         }
     }
-    
-//    pub fn parse_test(&self, id_handler: &mut IdHandler) {
-//        let m = Movie::new(id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
-//        println!("Movie: {:?}", m);
-//    }
+
+    fn output_movie(&mut self, mut movie : Movie) {
+        movie.output();
+    }
 }
 
 #[test]
@@ -224,6 +297,18 @@ fn test_movie_full_title() {
 
     let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
     assert_eq!("\"#1 Single\" (2006)", m3.full_title);
+}
+
+#[test]
+fn test_movie_suspended() {
+    let mut id_handler = IdHandler::new();
+    let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
+    assert_eq!(false, m1.suspended);
+    assert_eq!("2005", m1.full_year);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994) {{SUSPENDED}}			1994-1995");
+    assert_eq!(true, m2.suspended);
+    assert_eq!("", m2.full_year);
 }
 
 #[test]
@@ -282,6 +367,13 @@ fn test_movie_episode() {
     let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
     assert_eq!(false, m3.is_episode);
     assert_eq!("", m3.episode_parent_title);
+
+    let m1 = Movie::new(&mut id_handler, "\"#Adulting\" (2016/I) {(#1.3)}				2016");
+    assert_eq!(true, m1.is_episode);
+    assert_eq!("", m1.episode_name);
+    assert_eq!("1", m1.episode_season);
+    assert_eq!("3", m1.episode_episode);
+    assert_eq!("\"#Adulting\" (2016/I)", m1.episode_parent_title);
 }
 
 #[test]
@@ -290,8 +382,8 @@ fn test_movie_title_year() {
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!("2005", m1.title_year);
 
-    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
-    assert_eq!("1994", m2.title_year);
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994/II)					1994-1995");
+    assert_eq!("1994/II", m2.title_year);
 
     let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
     assert_eq!("2006", m3.title_year);
@@ -308,5 +400,25 @@ fn test_movie_title() {
 
     let m3 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					2006-????");
     assert_eq!("\"#1 Single\"", m3.title);
+}
+
+#[test]
+fn test_movie_title_category() {
+    let mut id_handler = IdHandler::new();
+    let m1 = Movie::new(&mut id_handler, "Movie 1 (2005) (TV)	2005");
+    assert_eq!("Movie 1", m1.title);
+    assert_eq!("TV", m1.title_category);
+
+    let m2 = Movie::new(&mut id_handler, "\"!Next?\" (1994)					1994-1995");
+    assert_eq!("TVS", m2.title_category);
+
+    let m3 = Movie::new(&mut id_handler, "Movie 2 (2005) (VG)	2005");
+    assert_eq!("VG", m3.title_category);
+
+    let m4 = Movie::new(&mut id_handler, "Movie 3 (2005) (V)	2005");
+    assert_eq!("V", m4.title_category);
+
+    let m5 = Movie::new(&mut id_handler, "Movie 4 (2005)	2005");
+    assert_eq!("", m5.title_category);
 }
 

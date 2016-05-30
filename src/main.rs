@@ -7,6 +7,7 @@ mod id_handler;
 use movies::Movies;
 use id_handler::IdHandler;
 
+
 fn main() {
     let mut id_handler = IdHandler::new();
     let mut movies = Movies::new();
