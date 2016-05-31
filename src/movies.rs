@@ -216,34 +216,34 @@ impl Movie {
         return self.episode_parent_title.to_owned();
     }
 
-    pub fn output(&mut self) {
-        println!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                 self.id,
-                 self.full_title,
-                 self.full_year,
-                 self.title,
-                 self.title_year,
-                 self.title_category,
-                 self.year_open_end,
-                 self.is_episode,
-                 self.episode_name,
-                 self.episode_season,
-                 self.episode_episode,
-                 self.episode_parent_title,
-                 self.suspended
-        );
+    pub fn output(&mut self, movie_file : &mut File, year_file : &mut File) {
+        write!(movie_file, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+               self.id,
+               self.full_title,
+               self.full_year,
+               self.title,
+               self.title_year,
+               self.title_category,
+               self.year_open_end,
+               self.is_episode,
+               self.episode_name,
+               self.episode_season,
+               self.episode_episode,
+               self.episode_parent_title,
+               self.suspended
+        ).unwrap();
+        for year in &self.years {
+            write!(year_file, "{}\t{}\n", self.id, year).unwrap();
+        }
     }
 }
 
 pub struct Movies {
-    movies: Vec<Movie>
 }
 
 impl Movies {
     pub fn new() -> Movies {
-        return Movies {
-            movies: vec![],
-        }
+        return Movies {};
     }
 
     pub fn parse_file(&mut self, mut id_handler: &mut IdHandler) {
@@ -253,6 +253,8 @@ impl Movies {
         let mut triggered = false;
         let mut trigger_skip = 3;
         let f = File::open("data/movies.list").unwrap();
+        let mut mf = File::create("output/movies.dat").unwrap();
+        let mut yf = File::create("output/movie-years.dat").unwrap();
         let file = BufReader::new(&f);
         for line in file.lines() {
             if !triggered {
@@ -276,13 +278,13 @@ impl Movies {
                 println_stderr!("{}       Movie: {:?}\n", counter, m);
             }
             //            self.movies.push(m);
-            self.output_movie(m);
+            self.output_movie(&mut mf, &mut yf, m);
             counter += 1;
         }
     }
 
-    fn output_movie(&mut self, mut movie : Movie) {
-        movie.output();
+    fn output_movie(&mut self, movie_file : &mut File, years_file : &mut File, mut movie : Movie) {
+        movie.output(movie_file, years_file);
     }
 }
 
