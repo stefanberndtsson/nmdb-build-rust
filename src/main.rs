@@ -9,7 +9,7 @@ use id_handler::IdHandler;
 
 
 fn main() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::MOVIES);
     let mut movies = Movies::new();
 
     movies.parse_file(&mut id_handler);

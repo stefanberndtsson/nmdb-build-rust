@@ -6,6 +6,9 @@ use chrono::*;
 use id_handler::IdHandler;
 use std::io::Write;
 
+use id_handler;
+
+
 macro_rules! println_stderr(
     ($($arg:tt)*) => { {
         let r = writeln!(&mut ::std::io::stderr(), $($arg)*);
@@ -149,6 +152,7 @@ impl Movie {
         let mut end_year = 0;
         lazy_static! {
             static ref YEAR_RE_SINGLE: Regex = Regex::new(r"^(\d\d\d\d)$").unwrap();
+            static ref YEAR_RE_SINGLE_UNKNOWN: Regex = Regex::new(r"^(\?\?\?\?)$").unwrap();
             static ref YEAR_RE_CLOSED: Regex = Regex::new(r"^(\d\d\d\d)-(\d\d\d\d)$").unwrap();
             static ref YEAR_RE_OPEN: Regex = Regex::new(r"^(\d\d\d\d)-(\?\?\?\?)$").unwrap();
         }
@@ -158,6 +162,9 @@ impl Movie {
         } else if YEAR_RE_SINGLE.is_match(&self.full_year) {
             start_year = self.full_year.parse::<i32>().unwrap();
             end_year = start_year;
+        } else if YEAR_RE_SINGLE_UNKNOWN.is_match(&self.full_year) {
+            start_year = -1;
+            end_year = -1;
         } else if YEAR_RE_OPEN.is_match(&self.full_year) {
             let cap = YEAR_RE_OPEN.captures(&self.full_year).unwrap();
             start_year = cap.at(1).unwrap_or("0").parse::<i32>().unwrap();
@@ -171,8 +178,10 @@ impl Movie {
         }
         
         self.years.clear();
-        let mut range = (start_year..end_year+1).collect::<Vec<i32>>();
-        self.years.append(&mut range);
+        if start_year > 0 && end_year > 0 {
+            let mut range = (start_year..end_year+1).collect::<Vec<i32>>();
+            self.years.append(&mut range);
+        }
     }
 
     fn extract_episode(&mut self) -> String {
@@ -278,7 +287,9 @@ impl Movies {
                 println_stderr!("{}       Movie: {:?}\n", counter, m);
             }
             //            self.movies.push(m);
-            self.output_movie(&mut mf, &mut yf, m);
+            if !m.suspended {
+                self.output_movie(&mut mf, &mut yf, m);
+            }
             counter += 1;
         }
     }
@@ -290,7 +301,7 @@ impl Movies {
 
 #[test]
 fn test_movie_full_title() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!("\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}", m1.full_title);
 
@@ -303,7 +314,7 @@ fn test_movie_full_title() {
 
 #[test]
 fn test_movie_suspended() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!(false, m1.suspended);
     assert_eq!("2005", m1.full_year);
@@ -315,7 +326,7 @@ fn test_movie_suspended() {
 
 #[test]
 fn test_movie_full_year() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!("2005", m1.full_year);
 
@@ -328,7 +339,7 @@ fn test_movie_full_year() {
 
 #[test]
 fn test_movie_years() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!(1, m1.years.len());
     assert_eq!(2005, m1.years[0]);
@@ -350,11 +361,14 @@ fn test_movie_years() {
     assert_eq!(2013, m3.years[7]);
     assert_eq!(2014, m3.years[8]);
     assert_eq!(2015, m3.years[9]);
+
+    let m4 = Movie::new(&mut id_handler, "\"#1 Single\" (2006)					????");
+    assert_eq!(true, m4.years.len() == 0);
 }
 
 #[test]
 fn test_movie_episode() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!(true, m1.is_episode);
     assert_eq!("E. Griff/Ralphie May", m1.episode_name);
@@ -380,7 +394,7 @@ fn test_movie_episode() {
 
 #[test]
 fn test_movie_title_year() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!("2005", m1.title_year);
 
@@ -393,7 +407,7 @@ fn test_movie_title_year() {
 
 #[test]
 fn test_movie_title() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "\"1st Amendment Stand Up\" (2005) {E. Griff/Ralphie May (#1.3)}	2005");
     assert_eq!("\"1st Amendment Stand Up\"", m1.title);
 
@@ -406,7 +420,7 @@ fn test_movie_title() {
 
 #[test]
 fn test_movie_title_category() {
-    let mut id_handler = IdHandler::new();
+    let mut id_handler = IdHandler::new(id_handler::TESTMOVIES);
     let m1 = Movie::new(&mut id_handler, "Movie 1 (2005) (TV)	2005");
     assert_eq!("Movie 1", m1.title);
     assert_eq!("TV", m1.title_category);
