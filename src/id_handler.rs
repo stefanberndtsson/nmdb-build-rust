@@ -5,7 +5,9 @@ use std::collections::HashMap;
 use std::io::Write;
 
 pub const MOVIES:     i32 = 0x1;
+pub const PEOPLE:     i32 = 0x2;
 pub const TESTMOVIES: i32 = 0x1000;
+pub const TESTPEOPLE: i32 = 0x2000;
 
 macro_rules! println_stderr(
     ($($arg:tt)*) => { {
@@ -18,31 +20,43 @@ macro_rules! println_stderr(
 #[derive(Debug)]
 pub struct IdHandler {
     movie_ids: HashMap<String, i32>,
-    movie_id_max: i32
+    movie_id_max: i32,
+    person_ids: HashMap<String, i32>,
+    person_id_max: i32
 }
 
 impl IdHandler {
     pub fn new(sections: i32) -> IdHandler {
-        let mut handler = IdHandler { movie_ids: HashMap::new(), movie_id_max: 0 };
+        let mut handler = IdHandler {
+            movie_ids: HashMap::new(), movie_id_max: 0,
+            person_ids: HashMap::new(), person_id_max: 0,
+        };
         if (sections & MOVIES) != 0 {
-            handler.generate_movie_ids();
+            handler.generate_movie_ids("data/movies_ids.dat");
+//        } else if (sections & TESTMOVIES) != 0 {
+//            handler.generate_movie_ids("data/movies_ids-short.dat");
+        }
+        if (sections & PEOPLE) != 0 {
+            handler.generate_person_ids("data/people_ids.dat");
+//        } else if (sections & TESTMOVIES) != 0 {
+//            handler.generate_movie_ids("data/movies_ids-short.dat");
         }
         return handler;
     }
 
-    fn generate_movie_ids(&mut self) {
+    fn generate_ids(&mut self, filename: &str) -> (i32, HashMap<String, i32>) {
         println_stderr!("Loading ids...");
+        let mut hash = HashMap::new();
         let mut highest_value = 0;
         let mut counter = 0;
-        self.movie_ids = HashMap::new();
-        let f = File::open("data/movies_ids.dat").unwrap();
+        let f = File::open(filename).unwrap();
         let file = BufReader::new(&f);
         for line in file.lines() {
             let line = line.unwrap();
             let parts : Vec<&str> = line.split("\t").collect();
             let id = parts[0].to_owned().parse::<i32>().unwrap();
             let name = parts[1].to_owned();
-            self.movie_ids.insert(name, id);
+            hash.insert(name, id);
             if id > highest_value {
                 highest_value = id;
             }
@@ -51,8 +65,20 @@ impl IdHandler {
             }
             counter += 1;
         }
+        println_stderr!("Loaded {} ids", counter);
+        return (10000000, hash);
+    }
+    
+    fn generate_movie_ids(&mut self, filename: &str) {
+        let (max, hash) = self.generate_ids(filename);
+        self.movie_id_max = max;
+        self.movie_ids = hash;
+    }
 
-        self.movie_id_max = 10000000;
+    fn generate_person_ids(&mut self, filename: &str) {
+        let (max, hash) = self.generate_ids(filename);
+        self.person_id_max = max;
+        self.person_ids = hash;
     }
 
     pub fn new_movie_id(&mut self, key: String) -> i32 {
