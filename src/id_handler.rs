@@ -87,13 +87,26 @@ impl IdHandler {
         self.movie_id_max = new_id;
         return new_id;
     }
+
+    pub fn find_movie_id(&mut self, title: &String) -> Option<i32> {
+        let found_id;
+        match self.movie_ids.get(title) {
+            Some(id) => {
+                found_id = Some(*id);
+            },
+            None => {
+                found_id = None;
+            }
+        }
+        return found_id;
+    }
     
     pub fn find_or_generate_movie_id(&mut self, title: &String) -> i32 {
         let mut new_id = 0;
         let mut set_new_id = false;
-        match self.movie_ids.get(title) {
+        match self.find_movie_id(title) {
             Some(id) => {
-                new_id = *id;
+                new_id = id;
             },
             None => {
                 set_new_id = true;
